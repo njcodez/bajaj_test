@@ -14,7 +14,7 @@ import org.springframework.web.client.RestTemplate;
 public class StartupRunner implements CommandLineRunner {
 
     private static final String INITIAL_URL = "https://bfhldevapigw.healthrx.co.in/hiring/generateWebhook/JAVA";
-    // The SQL that solves the "younger employees in same department" problem (from your question).
+
     private static final String SQL_FOR_YOUNGER_COUNT = "SELECT e1.EMP_ID, e1.FIRST_NAME, e1.LAST_NAME, d.DEPARTMENT_NAME, " +
             "COUNT(e2.EMP_ID) AS YOUNGER_EMPLOYEES_COUNT " +
             "FROM EMPLOYEE e1 " +
@@ -23,7 +23,6 @@ public class StartupRunner implements CommandLineRunner {
             "GROUP BY e1.EMP_ID, e1.FIRST_NAME, e1.LAST_NAME, d.DEPARTMENT_NAME " +
             "ORDER BY e1.EMP_ID DESC;";
 
-    // Example placeholder for alternate question (if regNo last two digits are even).
     private static final String SQL_PLACEHOLDER_ALT = "SELECT * FROM employees WHERE salary > 50000;";
 
     @Override
@@ -32,14 +31,14 @@ public class StartupRunner implements CommandLineRunner {
         ObjectMapper objectMapper = new ObjectMapper();
 
         try {
-            // Prepare initial request body
+
             WebhookRequest webhookRequest = new WebhookRequest("John Doe", "REG12347", "john@example.com");
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<WebhookRequest> requestEntity = new HttpEntity<>(webhookRequest, headers);
 
-            // Send initial POST and get raw response as String (robust parsing)
+         
             ResponseEntity<String> rawResponse = restTemplate.exchange(
                     INITIAL_URL,
                     HttpMethod.POST,
@@ -56,21 +55,20 @@ public class StartupRunner implements CommandLineRunner {
                 return;
             }
 
-            // Try to parse webhook and accessToken robustly from JSON (multiple possible shapes)
+        
             String webhook = null;
             String accessToken = null;
 
             try {
                 JsonNode root = objectMapper.readTree(rawBody);
 
-                // Common possibilities:
-                // 1) { "webhook": "...", "accessToken": "..." }
+             
                 if (root.has("webhook") && root.has("accessToken")) {
                     webhook = root.path("webhook").asText(null);
                     accessToken = root.path("accessToken").asText(null);
                 }
 
-                // 2) { "data": { "webhook": "...", "accessToken": "..." } }
+             
                 if ((webhook == null || accessToken == null) && root.has("data")) {
                     JsonNode data = root.path("data");
                     if (data.has("webhook") && data.has("accessToken")) {
@@ -79,9 +77,9 @@ public class StartupRunner implements CommandLineRunner {
                     }
                 }
 
-                // 3) deeper nested or different key names - try to search heuristically
+          
                 if (webhook == null || accessToken == null) {
-                    // find first occurrence of fields named "webhook" and "accessToken" anywhere
+          
                     JsonNode webhookNode = root.findValue("webhook");
                     JsonNode tokenNode = root.findValue("accessToken");
                     if (webhookNode != null) webhook = webhookNode.asText(null);
@@ -101,7 +99,6 @@ public class StartupRunner implements CommandLineRunner {
             System.out.println("Resolved webhook: " + webhook);
             System.out.println("Resolved accessToken: " + (accessToken == null ? "null" : "[REDACTED]"));
 
-            // Determine last two digits of regNo and pick SQL
             String regNo = webhookRequest.getRegNo();
             String digitsOnly = regNo.replaceAll("\\D", "");
             int lastTwo = 0;
@@ -116,10 +113,10 @@ public class StartupRunner implements CommandLineRunner {
 
             String finalSql;
             if (lastTwo % 2 == 1) {
-                // odd -> use the provided question SQL (the "younger employees per department" problem)
+              
                 finalSql = SQL_FOR_YOUNGER_COUNT;
             } else {
-                // even -> placeholder or alternate question SQL
+               
                 finalSql = SQL_PLACEHOLDER_ALT;
             }
 
@@ -130,12 +127,11 @@ public class StartupRunner implements CommandLineRunner {
 
             HttpHeaders finalHeaders = new HttpHeaders();
             finalHeaders.setContentType(MediaType.APPLICATION_JSON);
-            // Per your instruction, set Authorization header to the raw token (no "Bearer " prefix).
+            
             finalHeaders.set("Authorization", accessToken);
 
             HttpEntity<FinalQueryRequest> finalEntity = new HttpEntity<>(finalQueryRequest, finalHeaders);
 
-            // Send final POST to webhook
             ResponseEntity<String> finalResponse = restTemplate.exchange(
                     webhook,
                     HttpMethod.POST,
